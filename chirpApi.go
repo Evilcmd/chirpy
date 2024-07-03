@@ -90,3 +90,25 @@ func (dbCfg *dbConig) getAChirp(res http.ResponseWriter, req *http.Request) {
 
 	respondWithJSON(res, 200, mychirp)
 }
+
+func (dbCfg *dbConig) deleteAChirp(res http.ResponseWriter, req *http.Request) {
+	chirpId, err := strconv.Atoi(req.PathValue("chirpId"))
+	if err != nil {
+		respondWithError(res, 400, "id should be integer")
+		return
+	}
+
+	authorId, err := dbCfg.authenticate(req)
+	if err != nil {
+		respondWithError(res, 401, err.Error())
+		return
+	}
+
+	code, err := dbCfg.dbClient.DeleteSingleChirp(authorId, chirpId)
+	if err != nil {
+		respondWithError(res, code, err.Error())
+	}
+
+	res.WriteHeader(code)
+
+}

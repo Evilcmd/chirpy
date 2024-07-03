@@ -59,3 +59,34 @@ func (db *DB) GetsingleChirp(id int) (Chirp, int, error) {
 
 	return mychirp, 0, nil
 }
+
+func (db *DB) DeleteSingleChirp(authorId int, chirpId int) (int, error) {
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+
+	dbStrct, err := db.loadDatabase()
+	if err != nil {
+		return 400, err
+	}
+
+	mychirp, ok := dbStrct.Chirps[chirpId]
+	if !ok {
+		return 400, fmt.Errorf("chirp does not exist")
+	}
+
+	if mychirp.AuthorId != authorId {
+		return 403, fmt.Errorf("unauthorized")
+	}
+
+	delete(dbStrct.Chirps, chirpId)
+
+	dat, _ := json.Marshal(dbStrct)
+
+	err = os.WriteFile(db.Path, dat, 0666)
+	if err != nil {
+		return 400, fmt.Errorf("error in opening/writing file")
+	}
+
+	return 204, nil
+
+}
