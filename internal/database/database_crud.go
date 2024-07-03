@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func (db *DB) AddChirp(message string) (Chirp, error) {
+func (db *DB) AddChirp(message string, authorId int) (Chirp, error) {
 	db.Mutex.Lock()
 	defer db.Mutex.Unlock()
 	dbStrct, err := db.loadDatabase()
@@ -15,7 +15,7 @@ func (db *DB) AddChirp(message string) (Chirp, error) {
 	}
 
 	db.id++
-	chrp := Chirp{db.id, message}
+	chrp := Chirp{db.id, message, authorId}
 	dbStrct.Chirps[db.id] = chrp
 
 	dat, _ := json.Marshal(dbStrct)

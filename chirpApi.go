@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func getMessageFromReq(req *http.Request) (string, error) {
@@ -24,7 +27,28 @@ func getMessageFromReq(req *http.Request) (string, error) {
 	return checkProfane(chirp.ChirpMessage), nil
 }
 
+func (dbCfg *dbConig) authenticate(req *http.Request) (int, error) {
+	ss := req.Header.Get("Authorization")
+	ss = strings.Split(ss, " ")[1]
+
+	jwtToken, err := jwt.ParseWithClaims(ss, &Myclaim{}, func(t *jwt.Token) (interface{}, error) {
+		return dbCfg.dbClient.JwtSecret, nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("unauthorized")
+	}
+	x, _ := jwtToken.Claims.GetSubject()
+	y, _ := strconv.Atoi(x)
+	return y, nil
+}
+
 func (dbCfg *dbConig) createChiprs(res http.ResponseWriter, req *http.Request) {
+
+	authorID, err := dbCfg.authenticate(req)
+	if err != nil {
+		respondWithError(res, 401, err.Error())
+		return
+	}
 
 	ChirpMessage, err := getMessageFromReq(req)
 	if err != nil {
@@ -32,7 +56,7 @@ func (dbCfg *dbConig) createChiprs(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	payload, err := dbCfg.dbClient.AddChirp(ChirpMessage)
+	payload, err := dbCfg.dbClient.AddChirp(ChirpMessage, authorID)
 	if err != nil {
 		respondWithError(res, 400, err.Error())
 		return

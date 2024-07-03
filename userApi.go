@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,9 +20,10 @@ type returnUser struct {
 }
 
 type returnLoggedinUser struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	JwtToken string `json:"token"`
+	ID           int    `json:"id"`
+	Email        string `json:"email"`
+	JwtToken     string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func getemailAndPassFromReq(req *http.Request) (string, string, int, error) {
@@ -73,7 +76,7 @@ type Myclaim struct {
 }
 
 func (dbCfg *userdbConig) userLogin(res http.ResponseWriter, req *http.Request) {
-	UserEmail, UserPass, expiry_from_req, err := getemailAndPassFromReq(req)
+	UserEmail, UserPass, _, err := getemailAndPassFromReq(req)
 	if err != nil {
 		respondWithError(res, 400, err.Error())
 		return
@@ -89,12 +92,12 @@ func (dbCfg *userdbConig) userLogin(res http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	expiresInS := time.Second * (24 * 60 * 60)
-	if expiry_from_req != -1 {
-		if expiry_from_req < 24*60*60 {
-			expiresInS = time.Second * time.Duration((expiry_from_req))
-		}
-	}
+	expiresInS := time.Second * (60 * 60)
+	// if expiry_from_req != -1 {
+	// 	if expiry_from_req < 24*60*60 {
+	// 		expiresInS = time.Second * time.Duration((expiry_from_req))
+	// 	}
+	// }
 
 	now := time.Now()
 	expirationTime := now.Add(expiresInS)
@@ -112,10 +115,30 @@ func (dbCfg *userdbConig) userLogin(res http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	b := make([]byte, 32)
+	rand.Read(b)
+	refreshToken := hex.EncodeToString(b)
+
+	refDbStrct, err := dbCfg.dbClient.GetRefreshTokenStruct()
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+	refDbStrct.Token[refreshToken] = struct {
+		Expiry time.Time
+		Id     int
+	}{time.Now().Add(time.Hour * 24 * 60), code}
+	err = dbCfg.dbClient.WriteRefreshTokenStruct(refDbStrct)
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+
 	respondWithJSON(res, 200, returnLoggedinUser{
 		code,
 		UserEmail,
 		ss,
+		refreshToken,
 	})
 }
 
@@ -159,4 +182,68 @@ func (dbCfg *userdbConig) updateUser(res http.ResponseWriter, req *http.Request)
 		id,
 		UserEmail,
 	})
+}
+
+func (dbCfg *userdbConig) RefreshTokens(res http.ResponseWriter, req *http.Request) {
+	tokenString := req.Header.Get("Authorization")
+	tokenString = strings.Split(tokenString, " ")[1]
+
+	refDbStrct, err := dbCfg.dbClient.GetRefreshTokenStruct()
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+
+	v, ok := refDbStrct.Token[tokenString]
+
+	if !ok || (v.Expiry.Before(time.Now())) {
+		respondWithError(res, 401, "does not exist or has expired")
+	}
+
+	now := time.Now()
+	expirationTime := now.Add(time.Hour)
+
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, Myclaim{jwt.RegisteredClaims{
+		Issuer:    "chirpy",
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		Subject:   strconv.Itoa(v.Id),
+	}})
+
+	ss, err := jwtToken.SignedString(dbCfg.dbClient.JwtSecret)
+	if err != nil {
+		respondWithError(res, 400, "error in creating/signing jwt tokens")
+		return
+	}
+
+	respondWithJSON(res, 200, struct {
+		Token string `json:"token"`
+	}{
+		ss,
+	})
+}
+
+func (dbCfg *userdbConig) RevokeTokens(res http.ResponseWriter, req *http.Request) {
+	tokenString := req.Header.Get("Authorization")
+	tokenString = strings.Split(tokenString, " ")[1]
+
+	refDbStrct, err := dbCfg.dbClient.GetRefreshTokenStruct()
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+
+	_, ok := refDbStrct.Token[tokenString]
+
+	if ok {
+		delete(refDbStrct.Token, tokenString)
+		err = dbCfg.dbClient.WriteRefreshTokenStruct(refDbStrct)
+		if err != nil {
+			respondWithError(res, 400, err.Error())
+			return
+		}
+	}
+
+	res.WriteHeader(204)
+
 }

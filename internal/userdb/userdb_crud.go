@@ -1,7 +1,11 @@
 package userdb
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -88,4 +92,52 @@ func (db *UserDB) UpdateUser(id int, email string, password []byte) (int, error)
 	}
 
 	return 0, nil
+}
+
+type RefreshTokenDefn struct {
+	Token map[string]struct {
+		Expiry time.Time
+		Id     int
+	} `json:"token"`
+}
+
+func (db *UserDB) GetRefreshTokenStruct() (RefreshTokenDefn, error) {
+	db.Mutex.RLock()
+	defer db.Mutex.RUnlock()
+
+	dbStrct := RefreshTokenDefn{Token: make(map[string]struct {
+		Expiry time.Time
+		Id     int
+	})}
+	if !fileExists(db.TokenDbPath) {
+		return dbStrct, nil
+	}
+	dbread, err := os.ReadFile(db.TokenDbPath)
+	if err != nil {
+		return dbStrct, fmt.Errorf("error in opening/reading file: %v", err)
+	}
+	dbreader := bytes.NewReader(dbread)
+	decoder := json.NewDecoder(dbreader)
+	err = decoder.Decode(&dbStrct)
+	if err != nil {
+		return RefreshTokenDefn{Token: make(map[string]struct {
+			Expiry time.Time
+			Id     int
+		})}, fmt.Errorf("error in decoding: %v", err)
+	}
+	return dbStrct, nil
+}
+
+func (db *UserDB) WriteRefreshTokenStruct(refDbStrct RefreshTokenDefn) error {
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+
+	dat, _ := json.Marshal(refDbStrct)
+
+	err := os.WriteFile(db.TokenDbPath, dat, 0666)
+	if err != nil {
+		return fmt.Errorf("error in opening/writing file")
+	}
+
+	return nil
 }

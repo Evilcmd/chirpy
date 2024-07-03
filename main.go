@@ -37,6 +37,7 @@ func main() {
 	godotenv.Load()
 	jwtSecret := os.Getenv("JWT_SECRET")
 	userdbconfig.dbClient.JwtSecret = []byte(jwtSecret)
+	dbConig.dbClient.JwtSecret = []byte(jwtSecret)
 
 	mux := http.NewServeMux()
 
@@ -58,6 +59,9 @@ func main() {
 	mux.HandleFunc("POST /api/users", userdbconfig.createUser)
 	mux.HandleFunc("POST /api/login", userdbconfig.userLogin)
 	mux.HandleFunc("PUT /api/users", userdbconfig.updateUser)
+
+	mux.HandleFunc("POST /api/refresh", userdbconfig.RefreshTokens)
+	mux.HandleFunc("POST /api/revoke", userdbconfig.RevokeTokens)
 
 	server := http.Server{
 		Addr:    ":8080",

@@ -9,14 +9,16 @@ import (
 )
 
 type DB struct {
-	Path  string
-	id    int
-	Mutex *sync.RWMutex
+	Path      string
+	id        int
+	Mutex     *sync.RWMutex
+	JwtSecret []byte
 }
 
 type Chirp struct {
-	Id   int    `json:"id"`
-	Body string `json:"body"`
+	Id       int    `json:"id"`
+	Body     string `json:"body"`
+	AuthorId int    `json:"author_id"`
 }
 
 type DBStructure struct {
@@ -25,7 +27,7 @@ type DBStructure struct {
 
 func NewDB() DB {
 	filepath := "database.json"
-	return DB{filepath, 0, &sync.RWMutex{}}
+	return DB{filepath, 0, &sync.RWMutex{}, []byte{}}
 }
 
 func fileExists(filePath string) bool {

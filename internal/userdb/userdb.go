@@ -9,10 +9,11 @@ import (
 )
 
 type UserDB struct {
-	Path      string
-	id        int
-	Mutex     *sync.RWMutex
-	JwtSecret []byte
+	Path        string
+	id          int
+	Mutex       *sync.RWMutex
+	JwtSecret   []byte
+	TokenDbPath string
 }
 
 type User struct {
@@ -27,7 +28,7 @@ type UserDBStructure struct {
 
 func NewDB() UserDB {
 	filepath := "UserDB.json"
-	return UserDB{filepath, 0, &sync.RWMutex{}, []byte{}}
+	return UserDB{filepath, 0, &sync.RWMutex{}, []byte{}, "TokenDBPath.json"}
 }
 
 func fileExists(filePath string) bool {
