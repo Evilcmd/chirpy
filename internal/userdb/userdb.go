@@ -9,9 +9,10 @@ import (
 )
 
 type UserDB struct {
-	Path  string
-	id    int
-	Mutex *sync.RWMutex
+	Path      string
+	id        int
+	Mutex     *sync.RWMutex
+	JwtSecret []byte
 }
 
 type User struct {
@@ -26,7 +27,7 @@ type UserDBStructure struct {
 
 func NewDB() UserDB {
 	filepath := "UserDB.json"
-	return UserDB{filepath, 0, &sync.RWMutex{}}
+	return UserDB{filepath, 0, &sync.RWMutex{}, []byte{}}
 }
 
 func fileExists(filePath string) bool {
@@ -51,4 +52,15 @@ func (db *UserDB) loadDatabase() (UserDBStructure, error) {
 	}
 
 	return dbStrct, nil
+}
+
+func (db *UserDB) writeDatabase(dbStrct UserDBStructure) error {
+	dat, _ := json.Marshal(dbStrct)
+
+	err := os.WriteFile(db.Path, dat, 0666)
+	if err != nil {
+		return fmt.Errorf("error in opening/writing file")
+	}
+
+	return nil
 }

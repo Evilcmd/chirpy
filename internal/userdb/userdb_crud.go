@@ -1,9 +1,7 @@
 package userdb
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,11 +32,9 @@ func (db *UserDB) AddUser(email string, password []byte) (User, error) {
 	usr := User{db.id, email, password}
 	dbStrct.Users[db.id] = usr
 
-	dat, _ := json.Marshal(dbStrct)
-
-	err = os.WriteFile(db.Path, dat, 0666)
+	err = db.writeDatabase(dbStrct)
 	if err != nil {
-		return User{}, fmt.Errorf("error in opening/writing file")
+		return User{}, err
 	}
 
 	return usr, nil
@@ -64,4 +60,32 @@ func (db *UserDB) VerifyUser(email string, password []byte) (int, error) {
 		}
 	}
 	return 400, fmt.Errorf("user not found")
+}
+
+func (db *UserDB) UpdateUser(id int, email string, password []byte) (int, error) {
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+
+	dbStrct, err := db.loadDatabase()
+	if err != nil {
+		return 400, err
+	}
+
+	_, ok := dbStrct.Users[id]
+	if !ok {
+		return 400, fmt.Errorf("id not found")
+	}
+
+	// if v.Email != email {
+	// 	return 400, fmt.Errorf("email does not match")
+	// }
+
+	dbStrct.Users[id] = User{id, email, password}
+
+	err = db.writeDatabase(dbStrct)
+	if err != nil {
+		return 400, err
+	}
+
+	return 0, nil
 }

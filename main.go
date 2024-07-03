@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/Evilcmd/chirpy/internal/database"
 	"github.com/Evilcmd/chirpy/internal/userdb"
+	"github.com/joho/godotenv"
 )
 
 type apiConfig struct {
@@ -32,6 +34,10 @@ func main() {
 		userdb.NewDB(),
 	}
 
+	godotenv.Load()
+	jwtSecret := os.Getenv("JWT_SECRET")
+	userdbconfig.dbClient.JwtSecret = []byte(jwtSecret)
+
 	mux := http.NewServeMux()
 
 	fileServerRoute := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
@@ -51,6 +57,7 @@ func main() {
 
 	mux.HandleFunc("POST /api/users", userdbconfig.createUser)
 	mux.HandleFunc("POST /api/login", userdbconfig.userLogin)
+	mux.HandleFunc("PUT /api/users", userdbconfig.updateUser)
 
 	server := http.Server{
 		Addr:    ":8080",
