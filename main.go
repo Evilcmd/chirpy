@@ -36,7 +36,9 @@ func main() {
 
 	godotenv.Load()
 	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaSecret := os.Getenv("POLKA_SECRET")
 	userdbconfig.dbClient.JwtSecret = []byte(jwtSecret)
+	userdbconfig.dbClient.PolkaSecret = polkaSecret
 	dbConig.dbClient.JwtSecret = []byte(jwtSecret)
 
 	mux := http.NewServeMux()
@@ -64,6 +66,8 @@ func main() {
 
 	mux.HandleFunc("POST /api/refresh", userdbconfig.RefreshTokens)
 	mux.HandleFunc("POST /api/revoke", userdbconfig.RevokeTokens)
+
+	mux.HandleFunc("POST /api/polka/webhooks", userdbconfig.ChirpyRedWebhook)
 
 	server := http.Server{
 		Addr:    ":8080",

@@ -33,7 +33,7 @@ func (db *UserDB) AddUser(email string, password []byte) (User, error) {
 	}
 
 	db.id++
-	usr := User{db.id, email, password}
+	usr := User{db.id, email, password, false}
 	dbStrct.Users[db.id] = usr
 
 	err = db.writeDatabase(dbStrct)
@@ -84,7 +84,7 @@ func (db *UserDB) UpdateUser(id int, email string, password []byte) (int, error)
 	// 	return 400, fmt.Errorf("email does not match")
 	// }
 
-	dbStrct.Users[id] = User{id, email, password}
+	dbStrct.Users[id] = User{id, email, password, dbStrct.Users[id].IsChirpyRed}
 
 	err = db.writeDatabase(dbStrct)
 	if err != nil {
@@ -140,4 +140,38 @@ func (db *UserDB) WriteRefreshTokenStruct(refDbStrct RefreshTokenDefn) error {
 	}
 
 	return nil
+}
+
+func (db *UserDB) UpdateChirpyRed(UserId int) (int, error) {
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+	userDbStct, err := db.loadDatabase()
+	if err != nil {
+		return 400, err
+	}
+	_, ok := userDbStct.Users[UserId]
+	if !ok {
+		return 404, fmt.Errorf("user not found")
+	}
+	userDbStct.Users[UserId] = User{UserId, userDbStct.Users[UserId].Email, userDbStct.Users[UserId].Password, true}
+	err = db.writeDatabase(userDbStct)
+	if err != nil {
+		return 400, fmt.Errorf("error in writing to database")
+	}
+	return 204, nil
+}
+
+func (db *UserDB) GetChirpyRedStatus(UserId int) (bool, error) {
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+	userDbStct, err := db.loadDatabase()
+	if err != nil {
+		return false, err
+	}
+	v, ok := userDbStct.Users[UserId]
+	if !ok {
+		return false, fmt.Errorf("user not found")
+	}
+
+	return v.IsChirpyRed, nil
 }

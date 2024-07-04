@@ -15,8 +15,9 @@ import (
 )
 
 type returnUser struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type returnLoggedinUser struct {
@@ -24,6 +25,7 @@ type returnLoggedinUser struct {
 	Email        string `json:"email"`
 	JwtToken     string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 }
 
 func getemailAndPassFromReq(req *http.Request) (string, string, int, error) {
@@ -68,6 +70,7 @@ func (dbCfg *userdbConig) createUser(res http.ResponseWriter, req *http.Request)
 	respondWithJSON(res, 201, returnUser{
 		payload.Id,
 		payload.Email,
+		payload.IsChirpyRed,
 	})
 }
 
@@ -134,11 +137,18 @@ func (dbCfg *userdbConig) userLogin(res http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	chirpyRedStatus, err := dbCfg.dbClient.GetChirpyRedStatus(code)
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+
 	respondWithJSON(res, 200, returnLoggedinUser{
 		code,
 		UserEmail,
 		ss,
 		refreshToken,
+		chirpyRedStatus,
 	})
 }
 
@@ -178,9 +188,16 @@ func (dbCfg *userdbConig) updateUser(res http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	chirpyRedStatus, err := dbCfg.dbClient.GetChirpyRedStatus(code)
+	if err != nil {
+		respondWithError(res, 400, err.Error())
+		return
+	}
+
 	respondWithJSON(res, 200, returnUser{
 		id,
 		UserEmail,
+		chirpyRedStatus,
 	})
 }
 
@@ -246,4 +263,42 @@ func (dbCfg *userdbConig) RevokeTokens(res http.ResponseWriter, req *http.Reques
 
 	res.WriteHeader(204)
 
+}
+
+type ChirpyRedHookDefn struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID int `json:"user_id"`
+	} `json:"data"`
+}
+
+func (dbCfg *userdbConig) ChirpyRedWebhook(res http.ResponseWriter, req *http.Request) {
+	givenSecret := req.Header.Get("Authorization")
+	if givenSecret == "" {
+		respondWithError(res, 401, "no authorization given")
+		return
+	}
+	givenSecret = strings.Split(givenSecret, " ")[1]
+	if givenSecret != dbCfg.dbClient.PolkaSecret {
+		respondWithError(res, 401, "wrong authorization key")
+		return
+	}
+
+	deocder := json.NewDecoder(req.Body)
+	ChirpyRedHookRes := ChirpyRedHookDefn{}
+	err := deocder.Decode(&ChirpyRedHookRes)
+	if err != nil {
+		respondWithError(res, 400, "cannot decode the input")
+		return
+	}
+	if ChirpyRedHookRes.Event != "user.upgraded" {
+		res.WriteHeader(204)
+		return
+	}
+	code, err := dbCfg.dbClient.UpdateChirpyRed(ChirpyRedHookRes.Data.UserID)
+	if err != nil {
+		respondWithError(res, code, err.Error())
+		return
+	}
+	res.WriteHeader(204)
 }

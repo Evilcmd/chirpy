@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -66,13 +67,38 @@ func (dbCfg *dbConig) createChiprs(res http.ResponseWriter, req *http.Request) {
 }
 
 func (dbCfg *dbConig) getChirps(res http.ResponseWriter, req *http.Request) {
+
 	sliceOfChirps, err := dbCfg.dbClient.GetALlChirps()
 	if err != nil {
 		respondWithError(res, 400, err.Error())
 		return
 	}
 
-	respondWithJSON(res, 200, sliceOfChirps)
+	returnSlice := make([]string, 0, len(sliceOfChirps))
+	for _, v := range sliceOfChirps {
+		returnSlice = append(returnSlice, v.Body)
+	}
+
+	s := req.URL.Query().Get("author_id")
+	if s != "" {
+		authorId, _ := strconv.Atoi(s)
+		AuthorChirps := make([]string, 0, len(sliceOfChirps))
+
+		for _, v := range sliceOfChirps {
+			if v.AuthorId == authorId {
+				AuthorChirps = append(AuthorChirps, v.Body)
+			}
+		}
+		returnSlice = AuthorChirps
+	}
+
+	s = req.URL.Query().Get("sort")
+	if s == "desc" {
+		slices.Reverse(returnSlice)
+	}
+
+	respondWithJSON(res, 200, returnSlice)
+
 }
 
 func (dbCfg *dbConig) getAChirp(res http.ResponseWriter, req *http.Request) {

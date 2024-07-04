@@ -14,12 +14,14 @@ type UserDB struct {
 	Mutex       *sync.RWMutex
 	JwtSecret   []byte
 	TokenDbPath string
+	PolkaSecret string
 }
 
 type User struct {
-	Id       int    `json:"id"`
-	Email    string `json:"email"`
-	Password []byte `json:"password"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	Password    []byte `json:"password"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type UserDBStructure struct {
@@ -28,7 +30,7 @@ type UserDBStructure struct {
 
 func NewDB() UserDB {
 	filepath := "UserDB.json"
-	return UserDB{filepath, 0, &sync.RWMutex{}, []byte{}, "TokenDBPath.json"}
+	return UserDB{filepath, 0, &sync.RWMutex{}, []byte{}, "TokenDBPath.json", ""}
 }
 
 func fileExists(filePath string) bool {
